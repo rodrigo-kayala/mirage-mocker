@@ -1,0 +1,24 @@
+log-level: INFO
+services:
+  - parser: 
+      pattern: /.*$
+      methods: [POST,PUT,DELETE]
+      content-type: application/json
+      type: mock
+      response:
+        content-type: application/json
+        status:
+          POST: 201
+          PUT: 200
+          DELETE: 204
+        body-type: request
+  - parser: 
+      pattern: /ping$
+      methods: [GET]
+      type: mock
+      response:
+        content-type: text/plain
+        status:
+          GET: 200
+        body-type: fixed
+        body: 'pong'
