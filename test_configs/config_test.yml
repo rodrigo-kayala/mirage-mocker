@@ -22,3 +22,23 @@ services:
           GET: 200
         body-type: fixed
         body: 'pong'
+  - parser:
+      pattern: /version$
+      methods: [GET]
+      type: mock
+      response:
+        status:
+          GET: 200
+        body-type: runnable
+        response-lib: ../examples/runnable/runnable.so
+        response-symbol: Version
+  - parser:
+      pattern: /test/pass$
+      rewrite:
+        - source: '/test(/.*)'
+          target: '$1'
+      methods: [GET]
+      transform-lib: ../examples/transform/transform.so
+      transform-symbol: AddHeader
+      type: pass
+      pass-base-uri: "http://localhost:55545"
