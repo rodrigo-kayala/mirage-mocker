@@ -15,7 +15,7 @@ import (
 func TestMockNotMatch(t *testing.T) {
 	assert := assert.New(t)
 
-	c := config.LoadConfig("../test_configs/config_test.yml")
+	c := config.LoadConfig("../examples/config.yml")
 	p, _ := NewFromConfig(c)
 
 	req, err := http.NewRequest("GET", "/teste", nil)
@@ -37,7 +37,7 @@ func TestMockNotMatch(t *testing.T) {
 func TestMockFixedResponse(t *testing.T) {
 	assert := assert.New(t)
 
-	c := config.LoadConfig("../test_configs/config_test.yml")
+	c := config.LoadConfig("../examples/config.yml")
 	p, _ := NewFromConfig(c)
 
 	req, err := http.NewRequest("GET", "/ping", nil)
@@ -65,7 +65,7 @@ func TestMockRequestResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := config.LoadConfig("../test_configs/config_test.yml")
+	c := config.LoadConfig("../examples/config.yml")
 	p, _ := NewFromConfig(c)
 
 	req, err := http.NewRequest("POST", "/teste", bytes.NewReader(jsonBody))
@@ -93,7 +93,7 @@ func TestMockRequestResponse(t *testing.T) {
 func TestMockRunnableResponse(t *testing.T) {
 	assert := assert.New(t)
 
-	c := config.LoadConfig("../test_configs/config_test.yml")
+	c := config.LoadConfig("../examples/config.yml")
 	p, _ := NewFromConfig(c)
 
 	req, err := http.NewRequest("GET", "/version", nil)
@@ -133,7 +133,7 @@ func TestPassResponse(t *testing.T) {
 	backend.Start()
 	defer backend.Close()
 
-	c := config.LoadConfig("../test_configs/config_test.yml")
+	c := config.LoadConfig("../examples/config.yml")
 	c.Services[3].Parser.PassBaseURI = backend.URL
 
 	p, _ := NewFromConfig(c)
