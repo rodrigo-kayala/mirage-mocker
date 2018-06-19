@@ -30,7 +30,7 @@ services:
         status:
           GET: 200
         body-type: runnable
-        response-lib: ../examples/runnable/runnable.so
+        response-lib: ../examples/plugins/runnable/runnable.so
         response-symbol: Version
   - parser:
       pattern: /test/pass$
@@ -38,7 +38,7 @@ services:
         - source: '/test(/.*)'
           target: '$1'
       methods: [GET]
-      transform-lib: ../examples/transform/transform.so
+      transform-lib: ../examples/plugins/transform/transform.so
       transform-symbol: AddHeader
       type: pass
       pass-base-uri: "http://localhost:55545"
