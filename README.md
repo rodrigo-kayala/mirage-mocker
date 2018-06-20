@@ -3,7 +3,7 @@
 * Returning same body received (request-response mock)
 * Returning a fixed payload for a given Path
 * Running a customized Go Plugin witch produces a response
-Also, MIRAge mocker can transform (with customized Go Plugin) and **proxy-pass** your HTTP requests to a real server. 
+* Transform (with customized Go Plugin) and **proxy-pass** your HTTP requests to a real server. 
 
 ## Installation
 
@@ -198,4 +198,5 @@ func AddHeader(r *http.Request) error {
 	return nil
 }
 ```
+
 
