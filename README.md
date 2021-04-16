@@ -10,13 +10,13 @@
 ### Using go get
 If you have go installed, simple run: 
 ``` bash
-$ go get github.com/miraeducation/mirage-mocker
+$ go get github.com/rodrigo-kayala/mirage-mocker
  ```
 The binary file will be avaliable at `$GOPATH/bin`
 
 ### Using binary distribuition file
 You can  simple download a binary distrubition file compatible with your system:
-[https://github.com/miraeducation/mirage-mocker/releases](https://github.com/miraeducation/mirage-mocker/releases)
+[https://github.com/rodrigo-kayala/mirage-mocker/releases](https://github.com/rodrigo-kayala/mirage-mocker/releases)
 
 ## Usage
 Simple run `mirage-mocker`
@@ -28,7 +28,7 @@ If you don't inform a configuration  file, mirage-mocker will look for a `config
 ## Configuration
 
 ### Configuration example
-This configuration is avaliable in [here](https://github.com/miraeducation/mirage-mocker/blob/master/examples/config.yml) and is used for tests. Its also use a [runnable](https://github.com/miraeducation/mirage-mocker/tree/master/examples/plugins/runnable) plugin and a [transform](https://github.com/miraeducation/mirage-mocker/tree/master/examples/plugins/transform)
+This configuration is avaliable in [here](https://github.com/rodrigo-kayala/mirage-mocker/blob/master/examples/config.yml) and is used for tests. Its also use a [runnable](https://github.com/rodrigo-kayala/mirage-mocker/tree/master/examples/plugins/runnable) plugin and a [transform](https://github.com/rodrigo-kayala/mirage-mocker/tree/master/examples/plugins/transform)
 ``` yaml
 log-level: INFO
 services:
@@ -141,7 +141,7 @@ response:
 * **response-lib**: Go plugin (*.so) file - *for instructions, se below*
 * **response-symbol**: function witch will produce the response. Must have this signature: `func (w  http.ResponseWriter, r *http.Request, status  int) error` 
 
-[Here](https://github.com/miraeducation/mirage-mocker/blob/master/examples/plugins/runnable/runnable.go)  is an example os *runnable* plugin
+[Here](https://github.com/rodrigo-kayala/mirage-mocker/blob/master/examples/plugins/runnable/runnable.go)  is an example os *runnable* plugin
 
 #### Pass
 Run a customized  *go plugin* to transform request and proxy-pass to a real server 
@@ -164,7 +164,7 @@ Run a customized  *go plugin* to transform request and proxy-pass to a real serv
 * **transform-lib**: Go plugin (*.so) file - *for instructions, se below*
 * **transform-symbol**: function witch will transform the request. Must have this signature: `func (r *http.Request) error` 
 
-[Here](https://github.com/miraeducation/mirage-mocker/blob/master/examples/plugins/transform/transform.go)  is an example os *transform* plugin
+[Here](https://github.com/rodrigo-kayala/mirage-mocker/blob/master/examples/plugins/transform/transform.go)  is an example os *transform* plugin
 
 ## Plugins
 MIRAge mocker plugins are standard Go plugins (see [https://golang.org/pkg/plugin](https://golang.org/pkg/plugin)).

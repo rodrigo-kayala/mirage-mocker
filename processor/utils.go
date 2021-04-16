@@ -1,54 +1,55 @@
 package processor
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"plugin"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/rs/zerolog/log"
 )
 
-func runnableMethod(lib string, symbol string) (Runnable, error) {
+func loadRunnableFunc(lib string, symbol string) (runnableFunc, error) {
 	p, err := plugin.Open(lib)
 	if err != nil {
-		return Runnable{}, err
+		return nil, err
 	}
 
 	s, err := p.Lookup(symbol)
 	if err != nil {
-		return Runnable{}, err
+		return nil, err
 	}
 
-	f, ok := s.(func(w http.ResponseWriter, r *http.Request, status int) error)
+	f, ok := s.(runnableFunc)
 	if !ok {
-		return Runnable{}, fmt.Errorf("Runnable symbol must have this signature: func(w http.ResponseWriter, r *http.Request) error")
+		return nil, errors.New("runnable symbol must have this signature: func(w http.ResponseWriter, r *http.Request) error")
 	}
 
-	return Runnable{RunnableFunc: f}, nil
+	return f, nil
 }
 
-func transformMethod(lib string, symbol string) (Transform, error) {
+func loadTransformFunc(lib string, symbol string) (transformFunc, error) {
 	p, err := plugin.Open(lib)
 	if err != nil {
-		return Transform{}, err
+		return nil, err
 	}
 
 	s, err := p.Lookup(symbol)
 	if err != nil {
-		return Transform{}, err
+		return nil, err
 	}
 
-	f, ok := s.(func(r *http.Request) error)
+	f, ok := s.(transformFunc)
 	if !ok {
-		return Transform{}, fmt.Errorf("Transform symbol must have this signature: func(r *http.Request) error")
+		return nil, errors.New("transform symbol must have this signature: func(r *http.Request) error")
 	}
 
-	return Transform{TranformFunc: f}, nil
+	return f, nil
 }
 
 func errorResponse(w http.ResponseWriter, message string, status int) {
 	w.Header().Add("content-type", "text/plain")
 	w.WriteHeader(status)
-	log.Errorf("%s %d", message, status)
+	log.Error().Msgf("%d %s", status, message)
 	fmt.Fprintf(w, message)
 }
