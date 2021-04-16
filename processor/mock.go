@@ -4,55 +4,47 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/http/httputil"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // Runnable plugin structure
-type Runnable struct {
-	RunnableFunc func(w http.ResponseWriter, r *http.Request, status int) error
+type runnable struct {
+	runnableFunc func(w http.ResponseWriter, r *http.Request, status int) error
 }
 
-// MockParser base structure
-type MockParser struct {
-	BaseParser
-	Response Response
+type mockParser struct {
+	baseParser
+	Response response
 }
 
 // ProcessRequest process mock requests
-func (mr MockParser) ProcessRequest(w http.ResponseWriter, r *http.Request) {
-	if mr.Log != "disabled" {
+func (mr *mockParser) ProcessRequest(w http.ResponseWriter, r *http.Request) {
+	if mr.Log {
 		logRequest(r)
 	}
 
 	mr.Response.WriteResponse(w, r)
 }
 
-// GetBaseParser returns base parser
-func (mr MockParser) GetBaseParser() BaseParser {
-	return mr.BaseParser
+func (mr *mockParser) GetBaseParser() baseParser {
+	return mr.baseParser
 }
 
-// Response interface
-type Response interface {
+type response interface {
 	WriteResponse(w http.ResponseWriter, r *http.Request)
 }
 
-// BaseResponse base structure
-type BaseResponse struct {
+type baseResponse struct {
 	Status map[string]int
 }
 
-// ResponseFixed structure
-type ResponseFixed struct {
-	BaseResponse
+type responseFixed struct {
+	baseResponse
 	ContentType string
 	Body        string
 }
 
 // WriteResponse writes response for fixed response type
-func (rf ResponseFixed) WriteResponse(w http.ResponseWriter, r *http.Request) {
+func (rf *responseFixed) WriteResponse(w http.ResponseWriter, r *http.Request) {
 	if rf.ContentType != "" {
 		w.Header().Add("Content-Type", rf.ContentType)
 	}
@@ -61,14 +53,13 @@ func (rf ResponseFixed) WriteResponse(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(rf.Body))
 }
 
-// ResponseRequest structure
-type ResponseRequest struct {
-	BaseResponse
+type responseRequest struct {
+	baseResponse
 	ContentType string
 }
 
 // WriteResponse writes response for request response type
-func (rr ResponseRequest) WriteResponse(w http.ResponseWriter, r *http.Request) {
+func (rr *responseRequest) WriteResponse(w http.ResponseWriter, r *http.Request) {
 	if rr.ContentType != "" {
 		w.Header().Add("Content-Type", rr.ContentType)
 	}
@@ -85,28 +76,17 @@ func (rr ResponseRequest) WriteResponse(w http.ResponseWriter, r *http.Request) 
 	w.Write(body)
 }
 
-// ResponseRunnable structure
-type ResponseRunnable struct {
-	BaseResponse
-	runnable Runnable
+type responseRunnable struct {
+	baseResponse
+	runnable runnable
 }
 
 // WriteResponse writes response for runnable response type
-func (rr ResponseRunnable) WriteResponse(w http.ResponseWriter, r *http.Request) {
-	err := rr.runnable.RunnableFunc(w, r, rr.Status[r.Method])
+func (rr *responseRunnable) WriteResponse(w http.ResponseWriter, r *http.Request) {
+	err := rr.runnable.runnableFunc(w, r, rr.Status[r.Method])
 
 	if err != nil {
-		errorResponse(w, fmt.Sprintf("Error running request: %v", err), 500)
+		errorResponse(w, fmt.Sprintf("error running request: %v", err), 500)
 		return
 	}
-}
-
-func logRequest(r *http.Request) {
-
-	body, err := httputil.DumpRequest(r, true)
-	if err != nil {
-		log.Errorf("Error logging request: %v", err)
-	}
-
-	log.Infof("%s", body)
 }
