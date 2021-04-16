@@ -15,7 +15,3 @@ func AddHeader(r *http.Request) error {
 
 	return nil
 }
-
-func main() {
-
-}

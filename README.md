@@ -45,8 +45,80 @@ If you don't inform a configuration  file, mirage-mocker will look for a `mocker
 
 This configuration is avaliable in [here](example.yml) and is the same configuration used on the tests cenarios. It also uses a [runnable](processor/testdata/runnable) and a [transform](processor/testdata/tranform) plugin
 
-``` yaml:example.yml
-
+``` yaml
+pretty-logs: true
+services:
+  - parser:
+      pattern: /echo.*
+      rewrite:
+        - source: /echo(/.*)
+          target: $1
+      methods: [POST, GET, PUT, DELETE]
+      type: pass
+      log: true
+      transform-lib: processor/testdata/transform/transform.so
+      transform-symbol: AddHeader
+      pass-base-uri: "https://postman-echo.com"
+  - parser: 
+      pattern: /.*$
+      methods: [POST,PUT,DELETE]
+      content-type: application/json
+      type: mock
+      log: true
+      response:
+        content-type: application/json
+        status:
+          POST: 201
+          PUT: 200
+          DELETE: 204
+        body-type: request
+  - parser: 
+      pattern: /mock/fixed/value.*
+      methods: [GET]
+      type: mock
+      log: true
+      response:
+        content-type: text/plain
+        status:
+          GET: 200
+        body-type: fixed
+        body: pong
+  - parser:
+      pattern: /mock/fixed/delay.*
+      methods: [GET]
+      type: mock
+      log: true
+      delay:
+        min: 2s
+        max: 3s
+      response:
+        content-type: text/plain
+        status:
+          GET: 200
+        body-type: fixed
+        body: pong
+  - parser:
+      pattern: /mock/fixed/file.*
+      methods: [GET]
+      type: mock
+      log: true
+      response:
+        content-type: application/json
+        status:
+          GET: 200
+        body-type: fixed
+        body-file: processor/testdata/response1.json
+  - parser:
+      pattern: /mock/runnable.*
+      methods: [GET]
+      type: mock
+      log: true
+      response:
+        status:
+          GET: 200
+        body-type: runnable
+        response-lib: processor/testdata/runnable/runnable.so
+        response-symbol: GetEnv
 ```
 
 ### Base attributes
@@ -76,14 +148,35 @@ All mock type configurations should contains a response configuration
 
 Produces a fixed response for a given path/method. It can return a fixed string
 
-```yaml:example.yml [27-37]
+```yaml
+  - parser: 
+      pattern: /mock/fixed/value.*
+      methods: [GET]
+      type: mock
+      log: true
+      response:
+        content-type: text/plain
+        status:
+          GET: 200
+        body-type: fixed
+        body: pong
 
 ```
 
 Or the content of a file:
 
-```yaml:example.yml [52-62]
-
+```yaml
+  - parser:
+      pattern: /mock/fixed/file.*
+      methods: [GET]
+      type: mock
+      log: true
+      response:
+        content-type: application/json
+        status:
+          GET: 200
+        body-type: fixed
+        body-file: processor/testdata/response1.json
 ```
 
 #### Attributes
@@ -98,16 +191,38 @@ or
 
 Response will always have same body as the request
 
-```yaml:example.yml [14-26]
-
+```yaml
+  - parser: 
+      pattern: /.*$
+      methods: [POST,PUT,DELETE]
+      content-type: application/json
+      type: mock
+      log: true
+      response:
+        content-type: application/json
+        status:
+          POST: 201
+          PUT: 200
+          DELETE: 204
+        body-type: request
 ```
 
 ### Mock - runnable
 
 Run a customized *go plugin* which should perform the response
 
-```yaml:example.yml [63-73]
-
+```yaml
+  - parser:
+      pattern: /mock/runnable.*
+      methods: [GET]
+      type: mock
+      log: true
+      response:
+        status:
+          GET: 200
+        body-type: runnable
+        response-lib: processor/testdata/runnable/runnable.so
+        response-symbol: GetEnv
 ```
 
 #### Attributes
@@ -125,8 +240,18 @@ func (w  http.ResponseWriter, r *http.Request, status  int) error
 
 Optionally runs a customized *go plugin* to transform request and then proxy-pass it to a real server.
 
-```yaml:example.yml [3-13]
-
+```yaml
+  - parser:
+      pattern: /echo.*
+      rewrite:
+        - source: /echo(/.*)
+          target: $1
+      methods: [POST, GET, PUT, DELETE]
+      type: pass
+      log: true
+      transform-lib: processor/testdata/transform/transform.so
+      transform-symbol: AddHeader
+      pass-base-uri: "https://postman-echo.com"
 ```
 
 #### Attributes
@@ -154,8 +279,20 @@ func (w http.ResponseWriter, r *http.Request, status int) error
 
 #### Example
 
-```go:processor/testdata/runnable/runnable.go
+```go
+func GetEnv(w http.ResponseWriter, r *http.Request, status int) error {
+	var env string
+	vname, ok := r.URL.Query()["vname"]
+	if ok && len(vname) > 0 {
+		env = os.Getenv(vname[0])
+	}
 
+	w.Header().Add("Content-Type", "text/plain")
+	w.WriteHeader(status)
+	w.Write([]byte(fmt.Sprintf("%s", env)))
+
+	return nil
+}
 ```
 
 ### Transform plugins
@@ -168,6 +305,14 @@ func (r *http.Request) error {
 
 #### Example
 
-```go:processor/testdata/transform/transform.go
+```go
+func AddHeader(r *http.Request) error {
+	vname, ok := r.URL.Query()["vname"]
+	if ok && len(vname) > 0 {
+		env := os.Getenv(vname[0])
+		r.Header.Add(vname[0], env)
+	}
 
+	return nil
+}
 ```
