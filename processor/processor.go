@@ -37,7 +37,7 @@ type parser interface {
 // Process current request and write response
 func (rp *processor) Process(w http.ResponseWriter, r *http.Request) {
 	requestProcess, err := rp.matchParser(r)
-	log.Debug().Msgf("requestProcess: %v", requestProcess)
+	log.Debug().Msgf("requestProcess: %#v", requestProcess)
 
 	if err != nil {
 		status := http.StatusInternalServerError
@@ -127,7 +127,6 @@ func NewFromConfig(c config.Config) (Processor, error) {
 		default:
 			return nil, fmt.Errorf("bad value for config-type %s", service.Parser.ConfigType)
 		}
-
 	}
 
 	return &proc, nil
@@ -188,7 +187,7 @@ func parseMockResponseConfig(conf config.Response, base baseResponse) (response,
 
 		return &responseRunnable{
 			baseResponse: base,
-			runnableFunc: runnable,
+			runnable:     runnable,
 		}, nil
 	default:
 		return nil, fmt.Errorf("bad value for body-type %s", conf.BodyType)

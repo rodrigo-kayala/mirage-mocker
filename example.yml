@@ -1,0 +1,73 @@
+pretty-logs: true
+services:
+  - parser:
+      pattern: /echo.*
+      rewrite:
+        - source: /echo(/.*)
+          target: $1
+      methods: [POST, GET, PUT, DELETE]
+      type: pass
+      log: true
+      transform-lib: processor/testdata/transform/transform.so
+      transform-symbol: AddHeader
+      pass-base-uri: "https://postman-echo.com"
+  - parser: 
+      pattern: /.*$
+      methods: [POST,PUT,DELETE]
+      content-type: application/json
+      type: mock
+      log: true
+      response:
+        content-type: application/json
+        status:
+          POST: 201
+          PUT: 200
+          DELETE: 204
+        body-type: request
+  - parser: 
+      pattern: /mock/fixed/value.*
+      methods: [GET]
+      type: mock
+      log: true
+      response:
+        content-type: text/plain
+        status:
+          GET: 200
+        body-type: fixed
+        body: pong
+  - parser:
+      pattern: /mock/fixed/delay.*
+      methods: [GET]
+      type: mock
+      log: true
+      delay:
+        min: 2s
+        max: 3s
+      response:
+        content-type: text/plain
+        status:
+          GET: 200
+        body-type: fixed
+        body: pong
+  - parser:
+      pattern: /mock/fixed/file.*
+      methods: [GET]
+      type: mock
+      log: true
+      response:
+        content-type: application/json
+        status:
+          GET: 200
+        body-type: fixed
+        body-file: processor/testdata/response1.json
+  - parser:
+      pattern: /mock/runnable.*
+      methods: [GET]
+      type: mock
+      log: true
+      response:
+        status:
+          GET: 200
+        body-type: runnable
+        response-lib: processor/testdata/runnable/runnable.so
+        response-symbol: GetEnv

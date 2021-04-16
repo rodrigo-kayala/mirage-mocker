@@ -4,47 +4,48 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"plugin"
 
 	"github.com/rs/zerolog/log"
 )
 
-func loadRunnableFunc(lib string, symbol string) (runnableFunc, error) {
+func loadRunnableFunc(lib string, symbol string) (runnable, error) {
 	p, err := plugin.Open(lib)
 	if err != nil {
-		return nil, err
+		return runnable{}, err
 	}
 
 	s, err := p.Lookup(symbol)
 	if err != nil {
-		return nil, err
+		return runnable{}, err
 	}
 
-	f, ok := s.(runnableFunc)
+	f, ok := s.(func(w http.ResponseWriter, r *http.Request, status int) error)
 	if !ok {
-		return nil, errors.New("runnable symbol must have this signature: func(w http.ResponseWriter, r *http.Request) error")
+		return runnable{}, errors.New("runnable symbol must have this signature: func(w http.ResponseWriter, r *http.Request, status int) error")
 	}
 
-	return f, nil
+	return runnable{runnableFunc: f}, nil
 }
 
-func loadTransformFunc(lib string, symbol string) (transformFunc, error) {
+func loadTransformFunc(lib string, symbol string) (transform, error) {
 	p, err := plugin.Open(lib)
 	if err != nil {
-		return nil, err
+		return transform{}, err
 	}
 
 	s, err := p.Lookup(symbol)
 	if err != nil {
-		return nil, err
+		return transform{}, err
 	}
 
-	f, ok := s.(transformFunc)
+	f, ok := s.(func(r *http.Request) error)
 	if !ok {
-		return nil, errors.New("transform symbol must have this signature: func(r *http.Request) error")
+		return transform{}, errors.New("transform symbol must have this signature: func(r *http.Request) error")
 	}
 
-	return f, nil
+	return transform{tranformFunc: f}, nil
 }
 
 func errorResponse(w http.ResponseWriter, message string, status int) {
@@ -52,4 +53,25 @@ func errorResponse(w http.ResponseWriter, message string, status int) {
 	w.WriteHeader(status)
 	log.Error().Msgf("%d %s", status, message)
 	fmt.Fprintf(w, message)
+}
+
+func logRequest(r *http.Request) {
+	body, err := httputil.DumpRequest(r, true)
+	if err != nil {
+		log.Error().Err(err).Msgf("error logging request: %v", err)
+		return
+	}
+
+	log.Info().Msgf("Request: %s", body)
+}
+
+func logResponse(resp *http.Response) {
+
+	respBody, err := httputil.DumpResponse(resp, true)
+	if err != nil {
+		log.Error().Err(err).Msg("error logging response")
+		return
+	}
+
+	log.Info().Msgf("Response: %s", respBody)
 }

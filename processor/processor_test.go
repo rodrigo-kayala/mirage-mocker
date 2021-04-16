@@ -1,9 +1,12 @@
 package processor_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +19,24 @@ import (
 func buildTestConfig() config.Config {
 	return config.Config{
 		Services: []config.Service{
+			{
+				Parser: config.Parser{
+					Pattern:     "/.*",
+					Methods:     []string{"POST", "PUT", "DELETE"},
+					ContentType: "application/json",
+					ConfigType:  "mock",
+					Log:         true,
+					Response: config.Response{
+						ContentType: "application/json",
+						Status: map[string]int{
+							"POST":   201,
+							"PUT":    200,
+							"DELETE": 204,
+						},
+						BodyType: "request",
+					},
+				},
+			},
 			{
 				Parser: config.Parser{
 					Pattern:    "/mock/fixed/value.*",
@@ -39,8 +60,8 @@ func buildTestConfig() config.Config {
 					ConfigType: "mock",
 					Log:        true,
 					Delay: config.Delay{
-						Min: "2s",
-						Max: "4s",
+						Min: "200ms",
+						Max: "300ms",
 					},
 					Response: config.Response{
 						ContentType: "text/plain",
@@ -70,19 +91,17 @@ func buildTestConfig() config.Config {
 			},
 			{
 				Parser: config.Parser{
-					Pattern:     "/mock/request.*",
-					Methods:     []string{"POST", "PUT", "DELETE"},
-					ContentType: "application/json",
-					ConfigType:  "mock",
-					Log:         true,
+					Pattern:    "/mock/runnable.*",
+					Methods:    []string{"GET"},
+					ConfigType: "mock",
+					Log:        true,
 					Response: config.Response{
-						ContentType: "application/json",
 						Status: map[string]int{
-							"POST":   201,
-							"PUT":    200,
-							"DELETE": 204,
+							"GET": 200,
 						},
-						BodyType: "request",
+						BodyType:       "runnable",
+						ResponseLib:    "testdata/runnable/runnable.so",
+						ResponseSymbol: "GetEnv",
 					},
 				},
 			},
@@ -91,6 +110,8 @@ func buildTestConfig() config.Config {
 }
 
 func Test_processor_Process(t *testing.T) {
+	os.Setenv("MIRAGE_MOCKER_TEST_VAR", "mirage-mocker")
+
 	type args struct {
 		config      config.Config
 		method      string
@@ -156,7 +177,7 @@ func Test_processor_Process(t *testing.T) {
 				status:          200,
 				body:            "pong",
 				contentType:     "text/plain",
-				minimumDuration: 5 * time.Second,
+				minimumDuration: 200 * time.Millisecond,
 			},
 			wantErr: false,
 		},
@@ -189,6 +210,21 @@ func Test_processor_Process(t *testing.T) {
 				status:          201,
 				body:            "{\"some\": \"response\"}",
 				contentType:     "application/json",
+				minimumDuration: 0,
+			},
+			wantErr: false,
+		},
+		{
+			name: "mock with runnable response",
+			args: args{
+				config:   buildTestConfig(),
+				method:   "GET",
+				endpoint: "/mock/runnable?vname=MIRAGE_MOCKER_TEST_VAR",
+			},
+			out: out{
+				status:          200,
+				body:            "mirage-mocker",
+				contentType:     "text/plain",
 				minimumDuration: 0,
 			},
 			wantErr: false,
@@ -228,147 +264,75 @@ func Test_processor_Process(t *testing.T) {
 	}
 }
 
-// func TestMockFixedResponse(t *testing.T) {
-// 	assert := assert.New(t)
+func Test_processor_Process__pass(t *testing.T) {
+	assert := assert.New(t)
+	os.Setenv("MIRAGE_MOCKER_TEST_VAR", "mirage-mocker")
 
-// 	c := config.LoadConfig("../examples/config.yml")
-// 	p, _ := NewFromConfig(c)
+	inBody := map[string]string{"some": "value"}
+	inJson, err := json.Marshal(inBody)
+	assert.NoError(err)
 
-// 	req, err := http.NewRequest("GET", "/ping", nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
+	outBody := map[string]string{"other": "value"}
+	outJson, err := json.Marshal(outBody)
+	assert.NoError(err)
 
-// 	rr := httptest.NewRecorder()
-// 	handler := http.HandlerFunc(p.Process)
+	backend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(r.Header.Get("OTHER_HEADER"), "otherHeader")
+		assert.Equal(r.Header.Get("MIRAGE_MOCKER_TEST_VAR"), "mirage-mocker")
+		assert.Equal(r.URL.Path, "/pass")
 
-// 	handler.ServeHTTP(rr, req)
+		body := r.Body
+		defer body.Close()
+		bodyBytes, err := io.ReadAll(body)
+		assert.EqualValues(inJson, bodyBytes)
 
-// 	assert.EqualValues(http.StatusOK, rr.Code)
-// 	assert.EqualValues("pong", rr.Body.String())
-// 	assert.EqualValues("text/plain", rr.Header().Get("Content-Type"))
+		w.Header().Add("Content-Type", "application/json")
+		w.WriteHeader(200)
 
-// }
+		if err != nil {
+			assert.NoError(err)
+		}
+		w.Write(outJson)
+	}))
 
-// func TestMockRequestResponse(t *testing.T) {
-// 	assert := assert.New(t)
-// 	body := map[string]string{"teste": "teste1"}
-// 	jsonBody, err := json.Marshal(body)
+	backend.Start()
+	defer backend.Close()
 
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
+	c := config.Config{
+		Services: []config.Service{
+			{
+				Parser: config.Parser{
+					Pattern: "/test/pass.*",
+					Rewrites: []config.Rewrite{
+						{
+							Source: "/test(/.*)",
+							Target: "$1",
+						},
+					},
+					Methods:         []string{"POST"},
+					ConfigType:      "pass",
+					Log:             true,
+					TransformLib:    "testdata/transform/transform.so",
+					TransformSymbol: "AddHeader",
+					PassBaseURI:     backend.URL,
+				},
+			},
+		},
+	}
+	p, err := processor.NewFromConfig(c)
+	assert.NoError(err)
 
-// 	c := config.LoadConfig("../examples/config.yml")
-// 	p, _ := NewFromConfig(c)
+	req, err := http.NewRequest("POST", "/test/pass?vname=MIRAGE_MOCKER_TEST_VAR", bytes.NewReader(inJson))
+	assert.NoError(err)
+	req.Header.Add("OTHER_HEADER", "otherHeader")
 
-// 	req, err := http.NewRequest("POST", "/teste", bytes.NewReader(jsonBody))
-// 	req.Header.Add("Content-Type", "application/json")
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(p.Process)
 
-// 	rr := httptest.NewRecorder()
-// 	handler := http.HandlerFunc(p.Process)
+	handler.ServeHTTP(rr, req)
 
-// 	handler.ServeHTTP(rr, req)
-// 	respBody := make(map[string]string)
-// 	err = json.Unmarshal(rr.Body.Bytes(), &respBody)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
+	assert.Equal(http.StatusOK, rr.Code)
+	assert.Equal(string(outJson), rr.Body.String())
+	assert.Equal("application/json", rr.Header().Get("Content-Type"))
 
-// 	assert.EqualValues(http.StatusCreated, rr.Code)
-// 	assert.EqualValues(body, respBody)
-// 	assert.EqualValues("application/json", rr.Header().Get("Content-Type"))
-
-// }
-
-// func TestMockRunnableResponse(t *testing.T) {
-// 	assert := assert.New(t)
-
-// 	c := config.LoadConfig("../examples/config.yml")
-// 	p, _ := NewFromConfig(c)
-
-// 	req, err := http.NewRequest("GET", "/version", nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	rr := httptest.NewRecorder()
-// 	handler := http.HandlerFunc(p.Process)
-
-// 	handler.ServeHTTP(rr, req)
-
-// 	assert.EqualValues(http.StatusOK, rr.Code)
-// 	assert.EqualValues("v1.0.0", rr.Body.String())
-// 	assert.EqualValues("text/plain", rr.Header().Get("Content-Type"))
-
-// }
-
-// func TestPassResponse(t *testing.T) {
-// 	assert := assert.New(t)
-// 	body := map[string]string{"teste": "teste1"}
-// 	jsonBody, err := json.Marshal(body)
-
-// 	backend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 		assert.EqualValues(r.Header.Get("VERSION"), "v1.0.1")
-// 		assert.EqualValues(r.URL.Path, "/pass")
-
-// 		w.Header().Add("Content-Type", "application/json")
-// 		w.WriteHeader(200)
-
-// 		if err != nil {
-// 			t.Fatal(err)
-// 		}
-// 		w.Write(jsonBody)
-// 	}))
-
-// 	backend.Start()
-// 	defer backend.Close()
-
-// 	c := config.LoadConfig("../examples/config.yml")
-// 	c.Services[3].Parser.PassBaseURI = backend.URL
-
-// 	p, _ := NewFromConfig(c)
-
-// 	req, err := http.NewRequest("GET", "/test/pass", nil)
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-
-// 	rr := httptest.NewRecorder()
-// 	handler := http.HandlerFunc(p.Process)
-
-// 	handler.ServeHTTP(rr, req)
-
-// 	assert.EqualValues(http.StatusOK, rr.Code)
-// 	assert.EqualValues(jsonBody, rr.Body.String())
-// 	assert.EqualValues("application/json", rr.Header().Get("Content-Type"))
-
-// }
-
-// func Test_processor_Process(t *testing.T) {
-// 	type fields struct {
-// 		Parsers []parser
-// 	}
-// 	type args struct {
-// 		w http.ResponseWriter
-// 		r *http.Request
-// 	}
-// 	tests := []struct {
-// 		name   string
-// 		fields fields
-// 		args   args
-// 	}{
-// 		// TODO: Add test cases.
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			rp := &processor{
-// 				Parsers: tt.fields.Parsers,
-// 			}
-// 			rp.Process(tt.args.w, tt.args.r)
-// 		})
-// 	}
-// }
+}

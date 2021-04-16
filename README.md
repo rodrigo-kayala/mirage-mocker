@@ -1,202 +1,173 @@
-# MIRAge Mocker
-**MIRAge mocker** is a simple yet powerful API mock server. MIRAge mocker can mock any HTTP by:
+# Mirage Mocker
+
+**Mirage mocker** is a simple yet powerful API mock server. Mirage mocker can mock an HTTP request by:
+
 * Returning same body received (request-response mock)
-* Returning a fixed payload for a given Path
-* Running a customized Go Plugin witch produces a response
-* Transform (with customized Go Plugin) and **proxy-pass** your HTTP requests to a real server. 
+* Returning a fixed payload
+* Running a customized response produced by a [Go Plugin](https://golang.org/pkg/plugin/)
+* Transform the request (using a [Go Plugin](https://golang.org/pkg/plugin/)) and **proxy-pass** the HTTP requests to a real server.
 
 ## Installation
 
-### Using go get
-If you have go installed, simple run: 
-``` bash
-$ go get github.com/rodrigo-kayala/mirage-mocker
+### Using go
+
+Once you have [go installed](http://golang.org/doc/install.html#releases) and make sure to add $GOPATH/bin to your PATH.
+
+#### Go version < 1.16
+
+``` sh
+GO111MODULE=on go get github.com/rodrigo-kayala/mirage-mocker@v0.9.0
  ```
-The binary file will be avaliable at `$GOPATH/bin`
+
+#### Go version >= 1.16
+
+``` sh
+go install github.com/rodrigo-kayala/mirage-mocker@v0.9.0
+ ```
 
 ### Using binary distribuition file
-You can  simple download a binary distrubition file compatible with your system:
-[https://github.com/rodrigo-kayala/mirage-mocker/releases](https://github.com/rodrigo-kayala/mirage-mocker/releases)
+
+You can download the pre-build binary file compatible with your system [here](https://github.com/rodrigo-kayala/mirage-mocker/releases)
 
 ## Usage
-Simple run `mirage-mocker`
-``` bash
-$ mirage-mocker [config-file-path]
+
+Once you have the configuration file ready, simple run:
+
+``` sh
+mirage-mocker [config-file-path]
 ```
-If you don't inform a configuration  file, mirage-mocker will look for a `config.yml` in current path
+
+If you don't inform a configuration  file, mirage-mocker will look for a `mocker.yml` in current path
 
 ## Configuration
 
 ### Configuration example
-This configuration is avaliable in [here](https://github.com/rodrigo-kayala/mirage-mocker/blob/master/examples/config.yml) and is used for tests. Its also use a [runnable](https://github.com/rodrigo-kayala/mirage-mocker/tree/master/examples/plugins/runnable) plugin and a [transform](https://github.com/rodrigo-kayala/mirage-mocker/tree/master/examples/plugins/transform)
-``` yaml
-log-level: INFO
-services:
-  - parser: 
-      pattern: /.*$
-      methods: [POST,PUT,DELETE]
-      content-type: application/json
-      type: mock
-      response:
-        content-type: application/json
-        status:
-          POST: 201
-          PUT: 200
-          DELETE: 204
-        body-type: request
-  - parser: 
-      pattern: /ping$
-      methods: [GET]
-      type: mock
-      response:
-        content-type: text/plain
-        status:
-          GET: 200
-        body-type: fixed
-        body: 'pong'
-  - parser:
-      pattern: /version$
-      methods: [GET]
-      type: mock
-      response:
-        status:
-          GET: 200
-        body-type: runnable
-        response-lib: ../examples/plugins/runnable/runnable.so
-        response-symbol: Version
-  - parser:
-      pattern: /test/pass$
-      rewrite:
-        - source: '/test(/.*)'
-          target: '$1'
-      methods: [GET]
-      transform-lib: ../examples/plugins/transform/transform.so
-      transform-symbol: AddHeader
-      type: pass
-      pass-base-uri: "http://localhost:55545"
-```
-### Global attributtes 
-* **log-level**: global log level, using [logrus](https://github.com/sirupsen/logrus) log API.
-### Parsers
 
-#### Generic Attributes
+This configuration is avaliable in [here](example.yml) and is the same configuration used on the tests cenarios. It also uses a [runnable](processor/testdata/runnable) and a [transform](processor/testdata/tranform) plugin
+
+``` yaml:example.yml
+
+```
+
+### Base attributes
+
 * **pattern** *(required)*: regex pattern expression used to match requests URLs (without host)
-*  **methods** *(required)*: Array of HTTP methods for match
-* **content-type** *(optional)*: Content-type for match
+* **methods** *(required)*: array of HTTP methods to match
 * **type** *(required)*: *mock* or *pass* (proxy-pass)
-* **response** *(required - only for type **mock**)*
-	* **status** *(required for matched methods)*
-		* [*METHOD*]: [*HTTP RESPONSE STATUS CODE*]
-		* ex. **GET**: 200
-	* **body-type**: *fixed*, *request* or *runnable*
+* **content-type** *(optional)*: content-type to match (if the Content-Type header is not present or contains a different value, the request will not match)
+* **log** *(optional): tells if request/response content should be logged. Defaults to **false**
+* **delay** *(optional): adds a random delay to the request (could be useful to simulate real production cenarios)
+  * **min**: min delay time that should added
+  * **max**: max delay time that should added
 
 Other attributes are specific for some type of request or response. See below.
 
-#### Mock - fixed response
-Fixed response for a given path/method
-```yaml
-pattern: /ping$
-methods: [GET]
-type: mock
-response:
-  content-type: text/plain
-  status:
-    GET: 200
-  body-type: fixed
-  body: 'pong'
+### Mock - Base attributes
+
+All mock type configurations should contains a response configuration
+
+* **response** *(required for type **mock**)*
+  * **status** *(required for matched methods)*
+    * [*METHOD*]: [*HTTP RESPONSE STATUS CODE*]
+    * ex. **GET**: 200
+  * **body-type**: *fixed*, *request* or *runnable*
+
+### Mock - fixed
+
+Produces a fixed response for a given path/method. It can return a fixed string
+
+```yaml:example.yml [27-37]
+
 ```
-##### Mock - Fixed  Type Attributes
+
+Or the content of a file:
+
+```yaml:example.yml [52-62]
+
+```
+
+#### Attributes
+
 * **body**: response string
 
-#### Mock - request response
-Response will have same body as request 
-```yaml
- pattern: /.*$
- methods: [POST,PUT,DELETE]
- content-type: application/json
- type: mock
- response:
-   content-type: application/json
-   status:
-     POST: 201
-     PUT: 200
-     DELETE: 204
-   body-type: request
+or
+
+* **body-file**: file containing the response string
+
+### Mock - request response
+
+Response will always have same body as the request
+
+```yaml:example.yml [14-26]
+
 ```
 
-#### Mock - runnable
-Run a customized  *go plugin* to respond 
-```yaml
-pattern: /version$
-methods: [GET]
-type: mock
-response:
-  status:
-    GET: 200
-  body-type: runnable
-  response-lib: ../examples/plugins/runnable/runnable.so
-  response-symbol: Version
+### Mock - runnable
+
+Run a customized *go plugin* which should perform the response
+
+```yaml:example.yml [63-73]
+
 ```
-##### Mock - Runnable  Type Attributes
+
+#### Attributes
+
 * **response-lib**: Go plugin (*.so) file - *for instructions, se below*
-* **response-symbol**: function witch will produce the response. Must have this signature: `func (w  http.ResponseWriter, r *http.Request, status  int) error` 
+* **response-symbol**: function to produce the response. It must have this signature:
 
-[Here](https://github.com/rodrigo-kayala/mirage-mocker/blob/master/examples/plugins/runnable/runnable.go)  is an example os *runnable* plugin
-
-#### Pass
-Run a customized  *go plugin* to transform request and proxy-pass to a real server 
-```yaml
- pattern: /test/pass$
- rewrite:
-   - source: '/test(/.*)'
-     target: '$1'
- methods: [GET]
- transform-lib: ../examples/plugins/transform/transform.so
- transform-symbol: AddHeader
- type: pass
- pass-base-uri: "http://localhost:55545"
+```go
+func (w  http.ResponseWriter, r *http.Request, status  int) error
 ```
-##### Mock - Runnable  Type Attributes
-* **rewrite**: a set of regex replaces
-	* **source**: regular expression
-	* **target**: replace string
+
+[Here](processor/testdata/runnable/runnable.go) is a simple example of a *runnable* plugin
+
+### Pass
+
+Optionally runs a customized *go plugin* to transform request and then proxy-pass it to a real server.
+
+```yaml:example.yml [3-13]
+
+```
+
+#### Attributes
+
+* **rewrite**: a set of regex replaces to rewrite the URIs
+  * **source**: regular expression
+  * **target**: replace string
 * **pass-base-uri**: base URI to proxy-pass requests
 * **transform-lib**: Go plugin (*.so) file - *for instructions, se below*
-* **transform-symbol**: function witch will transform the request. Must have this signature: `func (r *http.Request) error` 
+* **transform-symbol**: function to transform the request. It must have this signature: `func (r *http.Request) error`
 
-[Here](https://github.com/rodrigo-kayala/mirage-mocker/blob/master/examples/plugins/transform/transform.go)  is an example os *transform* plugin
+[Here](processor/testdata/transform/transform.go) is a simple example of a *transform* plugin
 
 ## Plugins
-MIRAge mocker plugins are standard Go plugins (see [https://golang.org/pkg/plugin](https://golang.org/pkg/plugin)).
+
+Mirage mocker plugins are standard Go plugins (see [https://golang.org/pkg/plugin](https://golang.org/pkg/plugin)).
+
 ### Runnable plugins
+
 #### Function signature
+
 ```go
 func (w http.ResponseWriter, r *http.Request, status int) error
 ```
+
 #### Example
-```go
-// Version writes current version response - runnable example
-func Version(w http.ResponseWriter, r *http.Request, status int) error {
-	version := "v1.0.0"
-	w.Header().Add("Content-Type", "text/plain")
-	w.WriteHeader(status)
-	w.Write([]byte(version))
-	return nil
-}
+
+```go:processor/testdata/runnable/runnable.go
+
 ```
+
 ### Transform plugins
+
 #### Function signature
+
 ```go
 func (r *http.Request) error {
 ```
+
 #### Example
-```go
-// AddHeader adds an header to request
-func AddHeader(r *http.Request) error {
-	version := "v1.0.1"
-	r.Header.Add("VERSION", version)
-	return nil
-}
+
+```go:processor/testdata/transform/transform.go
+
 ```
-
-

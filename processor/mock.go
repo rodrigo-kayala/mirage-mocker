@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"net/http/httputil"
-
-	"github.com/rs/zerolog/log"
 )
 
-type runnableFunc func(w http.ResponseWriter, r *http.Request, status int) error
+// Runnable plugin structure
+type runnable struct {
+	runnableFunc func(w http.ResponseWriter, r *http.Request, status int) error
+}
 
 type mockParser struct {
 	baseParser
@@ -78,24 +78,15 @@ func (rr *responseRequest) WriteResponse(w http.ResponseWriter, r *http.Request)
 
 type responseRunnable struct {
 	baseResponse
-	runnableFunc runnableFunc
+	runnable runnable
 }
 
 // WriteResponse writes response for runnable response type
 func (rr *responseRunnable) WriteResponse(w http.ResponseWriter, r *http.Request) {
-	err := rr.runnableFunc(w, r, rr.Status[r.Method])
+	err := rr.runnable.runnableFunc(w, r, rr.Status[r.Method])
 
 	if err != nil {
 		errorResponse(w, fmt.Sprintf("error running request: %v", err), 500)
 		return
 	}
-}
-
-func logRequest(r *http.Request) {
-	body, err := httputil.DumpRequest(r, true)
-	if err != nil {
-		log.Error().Err(err).Msgf("Error logging request: %v", err)
-	}
-
-	log.Info().Msg(string(body))
 }

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -31,16 +33,21 @@ func loadConfig(configPath string) config.Config {
 }
 
 func main() {
-	configFile := "config.yml"
+	configFile := "mocker.yml"
 	if len(os.Args) > 1 {
-		configFile = os.Args[1] + ".yml"
+		configFile = os.Args[1]
 	}
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Output(os.Stdout)
-
 	c := loadConfig(configFile)
-	log.Info().Msgf("using config %s", configFile)
+
+	if c.PrettyLogs {
+		output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}
+		log.Logger = log.Logger.Output(output)
+	}
+
+	log.Info().Msgf("using config file: %s", configFile)
+	log.Debug().Msgf("config content: %#v", c)
 
 	rp, err := processor.NewFromConfig(c)
 
@@ -48,6 +55,11 @@ func main() {
 		log.Fatal().Err(err).Msg("error creating processor")
 	}
 
+	port := 8080
+	if c.Port > 0 {
+		port = c.Port
+	}
+
 	http.HandleFunc("/", rp.Process)
-	log.Fatal().Err(http.ListenAndServe(":8080", nil)).Msg("error serving http")
+	log.Fatal().Err(http.ListenAndServe(fmt.Sprintf(":%d", port), nil)).Msg("error serving http")
 }

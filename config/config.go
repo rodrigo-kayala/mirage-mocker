@@ -2,7 +2,9 @@ package config
 
 // Config configuration yaml structure
 type Config struct {
-	Services []Service `yaml:"services"`
+	Port       int       `yaml:"port"`
+	PrettyLogs bool      `yaml:"pretty-logs"`
+	Services   []Service `yaml:"services"`
 }
 
 // Service yaml structure

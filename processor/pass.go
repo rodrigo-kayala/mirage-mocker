@@ -13,13 +13,15 @@ import (
 )
 
 // Transform plugin structure
-type transformFunc func(r *http.Request) error
+type transform struct {
+	tranformFunc func(r *http.Request) error
+}
 
 // passParser type structure
 type passParser struct {
 	baseParser
 	proxy     *httputil.ReverseProxy
-	transform transformFunc
+	transform transform
 }
 
 // ProcessRequest process pass requests
@@ -35,11 +37,14 @@ func (pp passParser) GetBaseParser() baseParser {
 type logTransport struct{}
 
 func (t *logTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	logRequest(request)
+
 	response, err := http.DefaultTransport.RoundTrip(request)
 	if err != nil {
 		return response, err
 	}
-	logResponse(request, response)
+
+	logResponse(response)
 
 	return response, err
 }
@@ -55,18 +60,18 @@ func createPassParser(base baseParser, cr config.Parser) (passParser, error) {
 
 	log.Debug().Msgf("PASS URL: %v", url)
 
-	var transform transformFunc
+	var transf transform
 
 	if cr.TransformLib != "" && cr.TransformSymbol != "" {
-		transform, err = loadTransformFunc(cr.TransformLib, cr.TransformSymbol)
+		transf, err = loadTransformFunc(cr.TransformLib, cr.TransformSymbol)
 		if err != nil {
 			return passParser{}, fmt.Errorf("error loading tranform funcion: %w", err)
 		}
 	}
 
 	director := func(req *http.Request) {
-		if transform != nil {
-			err := transform(req)
+		if transf.tranformFunc != nil {
+			err := transf.tranformFunc(req)
 			if err != nil {
 				log.Error().Err(err).Msg("error transforming pass request")
 			}
@@ -98,22 +103,7 @@ func createPassParser(base baseParser, cr config.Parser) (passParser, error) {
 	}
 
 	parser.proxy = proxy
-	parser.transform = transform
+	parser.transform = transf
 
 	return parser, nil
-}
-
-func logResponse(req *http.Request, resp *http.Response) {
-
-	reqBody, err := httputil.DumpRequest(req, true)
-	if err != nil {
-		log.Error().Err(err).Msg("error logging request)")
-	}
-
-	respBody, err := httputil.DumpResponse(resp, true)
-	if err != nil {
-		log.Error().Err(err).Msg("error logging response")
-	}
-
-	log.Info().Msgf("REQUEST %s\n\nRESPONSE %s", reqBody, respBody)
 }
