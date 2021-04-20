@@ -16,13 +16,13 @@ Once you have [go installed](http://golang.org/doc/install.html#releases) and ma
 #### Go version < 1.16
 
 ``` sh
-GO111MODULE=on go get github.com/rodrigo-kayala/mirage-mocker@v1.1.0
+GO111MODULE=on go get github.com/rodrigo-kayala/mirage-mocker@v1.2.0
  ```
 
 #### Go version >= 1.16
 
 ``` sh
-go install github.com/rodrigo-kayala/mirage-mocker@v1.1.0
+go install github.com/rodrigo-kayala/mirage-mocker@v1.2.0
  ```
 
 ### Using binary distribuition file

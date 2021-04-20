@@ -3,9 +3,9 @@ package processor
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -195,7 +195,7 @@ func parseMockResponseConfig(conf config.Response, base baseResponse) (response,
 }
 
 func readBodyFile(src string) (string, error) {
-	b, err := os.ReadFile(src)
+	b, err := ioutil.ReadFile(src)
 	if err != nil {
 		return "", err
 	}
