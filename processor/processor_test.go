@@ -21,19 +21,22 @@ func buildTestConfig() config.Config {
 		Services: []config.Service{
 			{
 				Parser: config.Parser{
-					Pattern:     "/.*",
-					Methods:     []string{"POST", "PUT", "DELETE"},
-					ContentType: "application/json",
-					ConfigType:  "mock",
-					Log:         true,
+					Pattern:    "/.*",
+					Methods:    []string{"POST", "PUT", "DELETE"},
+					Headers:    map[string]string{"content-type": "application/json"},
+					ConfigType: "mock",
+					Log:        true,
 					Response: config.Response{
-						ContentType: "application/json",
+						Headers: map[string]string{
+							"content-type":  "application/json",
+							"custom-header": "somevalue",
+						},
 						Status: map[string]int{
 							"POST":   201,
 							"PUT":    200,
 							"DELETE": 204,
 						},
-						BodyType: "request",
+						BodyType: "echo",
 					},
 				},
 			},
@@ -44,7 +47,7 @@ func buildTestConfig() config.Config {
 					ConfigType: "mock",
 					Log:        true,
 					Response: config.Response{
-						ContentType: "text/plain",
+						Headers: map[string]string{"content-type": "text/plain"},
 						Status: map[string]int{
 							"GET": 200,
 						},
@@ -64,7 +67,7 @@ func buildTestConfig() config.Config {
 						Max: "300ms",
 					},
 					Response: config.Response{
-						ContentType: "text/plain",
+						Headers: map[string]string{"content-type": "text/plain"},
 						Status: map[string]int{
 							"GET": 200,
 						},
@@ -80,12 +83,30 @@ func buildTestConfig() config.Config {
 					ConfigType: "mock",
 					Log:        true,
 					Response: config.Response{
-						ContentType: "application/json",
+						Headers: map[string]string{"content-type": "application/json"},
 						Status: map[string]int{
 							"GET": 200,
 						},
 						BodyType: "fixed",
 						BodyFile: "testdata/response1.json",
+					},
+				},
+			},
+			{
+				Parser: config.Parser{
+					Pattern:    "/mock/magicheader/file.*",
+					Methods:    []string{"GET"},
+					ConfigType: "mock",
+					Log:        true,
+					Response: config.Response{
+						Headers: map[string]string{"content-type": "application/json"},
+						Status: map[string]int{
+							"GET": 200,
+						},
+						BodyType:          "fixed",
+						MagicHeaderFolder: "testdata",
+						MagicHeaderName:   "X-MOCK-FILE",
+						BodyFile:          "testdata/fallback.json",
 					},
 				},
 			},
@@ -113,16 +134,16 @@ func Test_processor_Process(t *testing.T) {
 	os.Setenv("MIRAGE_MOCKER_TEST_VAR", "mirage-mocker")
 
 	type args struct {
-		config      config.Config
-		method      string
-		endpoint    string
-		body        io.Reader
-		contentType string
+		config   config.Config
+		method   string
+		endpoint string
+		body     io.Reader
+		headers  map[string]string
 	}
 	type out struct {
 		status          int
 		body            string
-		contentType     string
+		headers         map[string]string
 		minimumDuration time.Duration
 	}
 	type test struct {
@@ -144,7 +165,7 @@ func Test_processor_Process(t *testing.T) {
 			out: out{
 				status:          404,
 				body:            "error processing request: no match found for request",
-				contentType:     "text/plain",
+				headers:         map[string]string{"content-type": "text/plain"},
 				minimumDuration: 0,
 			},
 			wantErr: false,
@@ -160,7 +181,7 @@ func Test_processor_Process(t *testing.T) {
 			out: out{
 				status:          200,
 				body:            "pong",
-				contentType:     "text/plain",
+				headers:         map[string]string{"content-type": "text/plain"},
 				minimumDuration: 0,
 			},
 			wantErr: false,
@@ -176,7 +197,7 @@ func Test_processor_Process(t *testing.T) {
 			out: out{
 				status:          200,
 				body:            "pong",
-				contentType:     "text/plain",
+				headers:         map[string]string{"content-type": "text/plain"},
 				minimumDuration: 200 * time.Millisecond,
 			},
 			wantErr: false,
@@ -191,25 +212,45 @@ func Test_processor_Process(t *testing.T) {
 			},
 			out: out{
 				status:          200,
-				body:            "{\"some\": \"response\"}",
-				contentType:     "application/json",
+				body:            "{\"some\": \"response1\"}",
+				headers:         map[string]string{"content-type": "application/json"},
 				minimumDuration: 0,
 			},
 			wantErr: false,
 		},
 		{
-			name: "mock with response equals request",
+			name: "header matching",
 			args: args{
-				config:      buildTestConfig(),
-				method:      "POST",
-				endpoint:    "/mock/request/something",
-				body:        strings.NewReader("{\"some\": \"response\"}"),
-				contentType: "application/json",
+				config:   buildTestConfig(),
+				method:   "POST",
+				endpoint: "/mock/request/something",
+				body:     strings.NewReader("{\"some\": \"response\"}"),
+				headers:  map[string]string{"content-type": "text/plain"},
 			},
 			out: out{
-				status:          201,
-				body:            "{\"some\": \"response\"}",
-				contentType:     "application/json",
+				status:          404,
+				body:            "error processing request: no match found for request",
+				headers:         map[string]string{"content-type": "text/plain"},
+				minimumDuration: 0,
+			},
+			wantErr: false,
+		},
+		{
+			name: "mock with response echo",
+			args: args{
+				config:   buildTestConfig(),
+				method:   "POST",
+				endpoint: "/mock/request/something",
+				body:     strings.NewReader("{\"some\": \"response\"}"),
+				headers:  map[string]string{"content-type": "application/json"},
+			},
+			out: out{
+				status: 201,
+				body:   "{\"some\": \"response\"}",
+				headers: map[string]string{
+					"content-type":  "application/json",
+					"custom-header": "somevalue",
+				},
 				minimumDuration: 0,
 			},
 			wantErr: false,
@@ -224,7 +265,74 @@ func Test_processor_Process(t *testing.T) {
 			out: out{
 				status:          200,
 				body:            "mirage-mocker",
-				contentType:     "text/plain",
+				headers:         map[string]string{"content-type": "text/plain"},
+				minimumDuration: 0,
+			},
+			wantErr: false,
+		},
+		{
+			name: "mock with magic header file value - fallback",
+			args: args{
+				config:   buildTestConfig(),
+				method:   "GET",
+				endpoint: "/mock/magicheader/file/something",
+				body:     nil,
+			},
+			out: out{
+				status:          200,
+				body:            "{\"some\": \"fallback\"}",
+				headers:         map[string]string{"content-type": "application/json"},
+				minimumDuration: 0,
+			},
+			wantErr: false,
+		},
+		{
+			name: "mock with magic header file value - response1",
+			args: args{
+				config:   buildTestConfig(),
+				method:   "GET",
+				endpoint: "/mock/magicheader/file/something",
+				headers:  map[string]string{"X-MOCK-FILE": "response1.json"},
+				body:     nil,
+			},
+			out: out{
+				status:          200,
+				body:            "{\"some\": \"response1\"}",
+				headers:         map[string]string{"content-type": "application/json"},
+				minimumDuration: 0,
+			},
+			wantErr: false,
+		},
+		{
+			name: "mock with magic header file value - response2",
+			args: args{
+				config:   buildTestConfig(),
+				method:   "GET",
+				endpoint: "/mock/magicheader/file/something",
+				headers:  map[string]string{"X-MOCK-FILE": "response2.json"},
+				body:     nil,
+			},
+			out: out{
+				status:          200,
+				body:            "{\"some\": \"response2\"}",
+				headers:         map[string]string{"content-type": "application/json"},
+				minimumDuration: 0,
+			},
+			wantErr: false,
+		},
+		{
+			name: "mock with magic header file value - not found",
+			args: args{
+				config:   buildTestConfig(),
+				method:   "GET",
+				endpoint: "/mock/magicheader/file/something",
+				headers:  map[string]string{"X-MOCK-FILE": "response3.json"},
+				body:     nil,
+			},
+			out: out{
+				status:          404,
+				body:            "file not found response3.json",
+				headers:         map[string]string{"content-type": "text/plain"},
 				minimumDuration: 0,
 			},
 			wantErr: false,
@@ -246,8 +354,8 @@ func Test_processor_Process(t *testing.T) {
 			req, err := http.NewRequest(tt.args.method, tt.args.endpoint, tt.args.body)
 			assert.NoError(err)
 
-			if tt.args.contentType != "" {
-				req.Header.Add("Content-Type", tt.args.contentType)
+			for k, v := range tt.args.headers {
+				req.Header.Add(k, v)
 			}
 
 			rr := httptest.NewRecorder()
@@ -256,8 +364,10 @@ func Test_processor_Process(t *testing.T) {
 			handler.ServeHTTP(rr, req)
 			assert.Equal(tt.out.status, rr.Code)
 			assert.Equal(tt.out.body, rr.Body.String())
-			assert.Equal(tt.out.contentType, rr.Header().Get("Content-Type"))
-			elapsed := time.Now().Sub(start)
+			for k, v := range tt.out.headers {
+				assert.Equal(rr.Header().Get(k), v)
+			}
+			elapsed := time.Since(start)
 
 			assert.LessOrEqual(tt.out.minimumDuration, elapsed)
 		})
@@ -269,11 +379,11 @@ func Test_processor_Process__pass(t *testing.T) {
 	os.Setenv("MIRAGE_MOCKER_TEST_VAR", "mirage-mocker")
 
 	inBody := map[string]string{"some": "value"}
-	inJson, err := json.Marshal(inBody)
+	inJSON, err := json.Marshal(inBody)
 	assert.NoError(err)
 
 	outBody := map[string]string{"other": "value"}
-	outJson, err := json.Marshal(outBody)
+	outJSON, err := json.Marshal(outBody)
 	assert.NoError(err)
 
 	backend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -284,7 +394,7 @@ func Test_processor_Process__pass(t *testing.T) {
 		body := r.Body
 		defer body.Close()
 		bodyBytes, err := io.ReadAll(body)
-		assert.EqualValues(inJson, bodyBytes)
+		assert.EqualValues(inJSON, bodyBytes)
 
 		w.Header().Add("Content-Type", "application/json")
 		w.WriteHeader(200)
@@ -292,7 +402,7 @@ func Test_processor_Process__pass(t *testing.T) {
 		if err != nil {
 			assert.NoError(err)
 		}
-		w.Write(outJson)
+		_, _ = w.Write(outJSON)
 	}))
 
 	backend.Start()
@@ -322,7 +432,7 @@ func Test_processor_Process__pass(t *testing.T) {
 	p, err := processor.NewFromConfig(c)
 	assert.NoError(err)
 
-	req, err := http.NewRequest("POST", "/test/pass?vname=MIRAGE_MOCKER_TEST_VAR", bytes.NewReader(inJson))
+	req, err := http.NewRequest("POST", "/test/pass?vname=MIRAGE_MOCKER_TEST_VAR", bytes.NewReader(inJSON))
 	assert.NoError(err)
 	req.Header.Add("OTHER_HEADER", "otherHeader")
 
@@ -332,7 +442,7 @@ func Test_processor_Process__pass(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(http.StatusOK, rr.Code)
-	assert.Equal(string(outJson), rr.Body.String())
+	assert.Equal(string(outJSON), rr.Body.String())
 	assert.Equal("application/json", rr.Header().Get("Content-Type"))
 
 }

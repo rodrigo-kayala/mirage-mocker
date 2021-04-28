@@ -52,7 +52,7 @@ func errorResponse(w http.ResponseWriter, message string, status int) {
 	w.Header().Add("content-type", "text/plain")
 	w.WriteHeader(status)
 	log.Error().Msgf("%d %s", status, message)
-	fmt.Fprintf(w, message)
+	fmt.Fprint(w, message)
 }
 
 func logRequest(r *http.Request) {

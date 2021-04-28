@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"net/http"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -64,11 +63,20 @@ func delay(min time.Duration, max time.Duration) {
 	time.Sleep(time.Duration(d))
 }
 
+func matchHeaders(header http.Header, expectedHeaders map[string]string) bool {
+	for k, v := range expectedHeaders {
+		if header.Get(k) != v {
+			return false
+		}
+	}
+	return true
+}
+
 func (rp *processor) matchParser(r *http.Request) (parser, error) {
 	log.Debug().Msgf("parsers: %#v", rp.Parsers)
 	for _, parser := range rp.Parsers {
 		bp := parser.GetBaseParser()
-		if bp.ContentType != "" && !strings.Contains(r.Header.Get("Content-Type"), bp.ContentType) {
+		if !matchHeaders(r.Header, bp.Headers) {
 			continue
 		}
 
@@ -90,12 +98,12 @@ func (rp *processor) matchParser(r *http.Request) (parser, error) {
 
 // baseParser base structure
 type baseParser struct {
-	Pattern     string
-	Methods     []string
-	ContentType string
-	Log         bool
-	MinDelay    time.Duration
-	MaxDelay    time.Duration
+	Pattern  string
+	Methods  []string
+	Headers  map[string]string
+	Log      bool
+	MinDelay time.Duration
+	MaxDelay time.Duration
 }
 
 // NewFromConfig creates a new RequestProcessor from a Config struct
@@ -116,7 +124,10 @@ func NewFromConfig(c config.Config) (Processor, error) {
 			proc.Parsers = append(proc.Parsers, passParser)
 		case "mock":
 			mparser := mockParser{baseParser: base}
-			baseResp := baseResponse{Status: service.Parser.Response.Status}
+			baseResp := baseResponse{
+				Status:  service.Parser.Response.Status,
+				Headers: service.Parser.Response.Headers,
+			}
 
 			resp, err := parseMockResponseConfig(service.Parser.Response, baseResp)
 			if err != nil {
@@ -134,10 +145,10 @@ func NewFromConfig(c config.Config) (Processor, error) {
 
 func createBaseParser(conf config.Parser) (baseParser, error) {
 	base := baseParser{
-		ContentType: conf.ContentType,
-		Log:         conf.Log,
-		Methods:     conf.Methods,
-		Pattern:     conf.Pattern,
+		Headers: conf.Headers,
+		Log:     conf.Log,
+		Methods: conf.Methods,
+		Pattern: conf.Pattern,
 	}
 
 	if conf.Delay.Min != "" && conf.Delay.Max != "" {
@@ -172,12 +183,14 @@ func parseMockResponseConfig(conf config.Response, base baseResponse) (response,
 		return &responseFixed{
 			baseResponse: base,
 			Body:         body,
-			ContentType:  conf.ContentType,
+			MagicHeader: MagicHeader{
+				Name:         conf.MagicHeaderName,
+				SourceFolder: conf.MagicHeaderFolder,
+			},
 		}, nil
-	case "request":
-		return &responseRequest{
+	case "echo":
+		return &responseEcho{
 			baseResponse: base,
-			ContentType:  conf.ContentType,
 		}, nil
 	case "runnable":
 		runnable, err := loadRunnableFunc(conf.ResponseLib, conf.ResponseSymbol)

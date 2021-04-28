@@ -1,68 +1,87 @@
 pretty-logs: true
 services:
   - parser:
-      pattern: /echo.*
+      pattern: /pass/postman.*
       rewrite:
-        - source: /echo(/.*)
+        - source: /pass/postman(/.*)
           target: $1
-      methods: [POST, GET, PUT, DELETE]
+      methods: [ POST, GET, PUT, DELETE ]
       type: pass
       log: true
       transform-lib: processor/testdata/transform/transform.so
       transform-symbol: AddHeader
       pass-base-uri: "https://postman-echo.com"
-  - parser: 
+  - parser:
       pattern: /.*$
-      methods: [POST,PUT,DELETE]
-      content-type: application/json
+      methods: [ POST,PUT,DELETE ]
+      headers:
+        content-type: application/json
       type: mock
       log: true
       response:
-        content-type: application/json
+        headers:
+          content-type: application/json
         status:
           POST: 201
           PUT: 200
           DELETE: 204
-        body-type: request
-  - parser: 
+        body-type: echo
+  - parser:
       pattern: /mock/fixed/value.*
-      methods: [GET]
+      methods: [ GET ]
       type: mock
       log: true
       response:
-        content-type: text/plain
+        headers:
+          content-type: text/plain
         status:
           GET: 200
         body-type: fixed
         body: pong
   - parser:
       pattern: /mock/fixed/delay.*
-      methods: [GET]
+      methods: [ GET ]
       type: mock
       log: true
       delay:
         min: 2s
         max: 3s
       response:
-        content-type: text/plain
+        headers:
+          content-type: text/plain
         status:
           GET: 200
         body-type: fixed
         body: pong
   - parser:
       pattern: /mock/fixed/file.*
-      methods: [GET]
+      methods: [ GET ]
       type: mock
       log: true
       response:
-        content-type: application/json
+        headers:
+          content-type: application/json
         status:
           GET: 200
         body-type: fixed
         body-file: processor/testdata/response1.json
   - parser:
+      pattern: /mock/magicheader/file.*
+      methods: [ GET ]
+      type: mock
+      log: true
+      response:
+        headers:
+          content-type: application/json
+        status:
+          GET: 200
+        body-type: fixed
+        body-file: processor/testdata/fallback.json
+        magic-header-name: X-MAGIC-FILE
+        magic-header-folder: processor/testdata
+  - parser:
       pattern: /mock/runnable.*
-      methods: [GET]
+      methods: [ GET ]
       type: mock
       log: true
       response:

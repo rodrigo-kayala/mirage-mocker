@@ -2,8 +2,9 @@
 
 **Mirage mocker** is a simple yet powerful API mock server. Mirage mocker can mock an HTTP request by:
 
-* Returning same body received (request-response mock)
+* Echo the request (returning same body received)
 * Returning a fixed payload
+* Returning a payload based on a header
 * Running a customized response produced by a [Go Plugin](https://golang.org/pkg/plugin/)
 * Transform the request (using a [Go Plugin](https://golang.org/pkg/plugin/)) and **proxy-pass** the HTTP requests to a real server.
 
@@ -49,68 +50,87 @@ This configuration is avaliable in [here](example.yml) and is the same configura
 pretty-logs: true
 services:
   - parser:
-      pattern: /echo.*
+      pattern: /pass/postman.*
       rewrite:
-        - source: /echo(/.*)
+        - source: /pass/postman(/.*)
           target: $1
-      methods: [POST, GET, PUT, DELETE]
+      methods: [ POST, GET, PUT, DELETE ]
       type: pass
       log: true
       transform-lib: processor/testdata/transform/transform.so
       transform-symbol: AddHeader
       pass-base-uri: "https://postman-echo.com"
-  - parser: 
+  - parser:
       pattern: /.*$
-      methods: [POST,PUT,DELETE]
-      content-type: application/json
+      methods: [ POST,PUT,DELETE ]
+      headers:
+        content-type: application/json
       type: mock
       log: true
       response:
-        content-type: application/json
+        headers:
+          content-type: application/json
         status:
           POST: 201
           PUT: 200
           DELETE: 204
-        body-type: request
-  - parser: 
+        body-type: echo
+  - parser:
       pattern: /mock/fixed/value.*
-      methods: [GET]
+      methods: [ GET ]
       type: mock
       log: true
       response:
-        content-type: text/plain
+        headers:
+          content-type: text/plain
         status:
           GET: 200
         body-type: fixed
         body: pong
   - parser:
       pattern: /mock/fixed/delay.*
-      methods: [GET]
+      methods: [ GET ]
       type: mock
       log: true
       delay:
         min: 2s
         max: 3s
       response:
-        content-type: text/plain
+        headers:
+          content-type: text/plain
         status:
           GET: 200
         body-type: fixed
         body: pong
   - parser:
       pattern: /mock/fixed/file.*
-      methods: [GET]
+      methods: [ GET ]
       type: mock
       log: true
       response:
-        content-type: application/json
+        headers:
+          content-type: application/json
         status:
           GET: 200
         body-type: fixed
         body-file: processor/testdata/response1.json
   - parser:
+      pattern: /mock/magicheader/file.*
+      methods: [ GET ]
+      type: mock
+      log: true
+      response:
+        headers:
+          content-type: application/json
+        status:
+          GET: 200
+        body-type: fixed
+        body-file: processor/testdata/fallback.json
+        magic-header-name: X-MAGIC-FILE
+        magic-header-folder: processor/testdata
+  - parser:
       pattern: /mock/runnable.*
-      methods: [GET]
+      methods: [ GET ]
       type: mock
       log: true
       response:
@@ -126,9 +146,9 @@ services:
 * **pattern** *(required)*: regex pattern expression used to match requests URLs (without host)
 * **methods** *(required)*: array of HTTP methods to match
 * **type** *(required)*: *mock* or *pass* (proxy-pass)
-* **content-type** *(optional)*: content-type to match (if the Content-Type header is not present or contains a different value, the request will not match)
-* **log** *(optional): tells if request/response content should be logged. Defaults to **false**
-* **delay** *(optional): adds a random delay to the request (could be useful to simulate real production cenarios)
+* **headers** *(optional)*: map of required headers to match
+* **log** *(optional)*: tells if request/response content should be logged. Defaults to **false**
+* **delay** *(optional)*: adds a random delay to the request (could be useful to simulate real production cenarios)
   * **min**: min delay time that should added
   * **max**: max delay time that should added
 
@@ -143,6 +163,8 @@ All mock type configurations should contains a response configuration
     * [*METHOD*]: [*HTTP RESPONSE STATUS CODE*]
     * ex. **GET**: 200
   * **body-type**: *fixed*, *request* or *runnable*
+  * **headers** *(optional)*: map of response headers
+  
 
 ### Mock - fixed
 
@@ -155,7 +177,8 @@ Produces a fixed response for a given path/method. It can return a fixed string
       type: mock
       log: true
       response:
-        content-type: text/plain
+        headers:
+          content-type: text/plain
         status:
           GET: 200
         body-type: fixed
@@ -172,20 +195,43 @@ Or the content of a file:
       type: mock
       log: true
       response:
-        content-type: application/json
+        headers:
+          content-type: application/json
         status:
           GET: 200
         body-type: fixed
         body-file: processor/testdata/response1.json
 ```
+Or the content of a file based on a header (aka magic header):
+
+```yaml
+  - parser:
+      pattern: /mock/magicheader/file.*
+      methods: [ GET ]
+      type: mock
+      log: true
+      response:
+        headers:
+          content-type: application/json
+        status:
+          GET: 200
+        body-type: fixed
+        body-file: processor/testdata/fallback.json
+        magic-header-name: X-MAGIC-FILE
+        magic-header-folder: processor/testdata
+```
+In this last configuration the response will be the content of the file name passed on the chosen header (X-MAGIC-FILE in this configuration) 
+
 
 #### Attributes
-
-* **body**: response string
+* **body**: response string 
 
 or
-
 * **body-file**: file containing the response string
+
+and
+* **magic-header-name** *(optional)*: name of the magic header (which will contain the name of the file to be read)
+* **magic-header-folder** *(optional)*: folder path where the files for the magic header will store (for security reasons the magic header can only read files from this folder)
 
 ### Mock - request response
 
@@ -199,7 +245,8 @@ Response will always have same body as the request
       type: mock
       log: true
       response:
-        content-type: application/json
+        headers:
+          content-type: application/json
         status:
           POST: 201
           PUT: 200
