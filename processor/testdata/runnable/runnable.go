@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 )
@@ -17,7 +16,7 @@ func GetEnv(w http.ResponseWriter, r *http.Request, status int) error {
 
 	w.Header().Add("Content-Type", "text/plain")
 	w.WriteHeader(status)
-	w.Write([]byte(fmt.Sprintf("%s", env)))
+	w.Write([]byte(env))
 
 	return nil
 }
