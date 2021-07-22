@@ -21,10 +21,9 @@ type Parser struct {
 	ConfigType      string            `yaml:"type"`
 	TransformLib    string            `yaml:"transform-lib"`
 	TransformSymbol string            `yaml:"transform-symbol"`
-	Response        Response          `yaml:"response"`
+	Responses       []Response        `yaml:"responses"`
 	PassBaseURI     string            `yaml:"pass-base-uri"`
 	Log             bool              `yaml:"log"`
-	Delay           Delay             `yaml:"delay"`
 }
 
 // Rewrite yaml structure
@@ -44,6 +43,8 @@ type Response struct {
 	ResponseSymbol    string            `yaml:"response-symbol"`
 	MagicHeaderName   string            `yaml:"magic-header-name"`
 	MagicHeaderFolder string            `yaml:"magic-header-folder"`
+	Distribuition     float64           `yaml:"distribution"`
+	Delay             Delay             `yaml:"delay"`
 }
 
 type Delay struct {

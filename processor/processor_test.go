@@ -26,7 +26,7 @@ func buildTestConfig() config.Config {
 					Headers:    map[string]string{"content-type": "application/json"},
 					ConfigType: "mock",
 					Log:        true,
-					Response: config.Response{
+					Responses: []config.Response{{
 						Headers: map[string]string{
 							"content-type":  "application/json",
 							"custom-header": "somevalue",
@@ -37,7 +37,7 @@ func buildTestConfig() config.Config {
 							"DELETE": 204,
 						},
 						BodyType: "echo",
-					},
+					}},
 				},
 			},
 			{
@@ -46,14 +46,14 @@ func buildTestConfig() config.Config {
 					Methods:    []string{"GET"},
 					ConfigType: "mock",
 					Log:        true,
-					Response: config.Response{
+					Responses: []config.Response{{
 						Headers: map[string]string{"content-type": "text/plain"},
 						Status: map[string]int{
 							"GET": 200,
 						},
 						BodyType: "fixed",
 						Body:     "pong",
-					},
+					}},
 				},
 			},
 			{
@@ -62,18 +62,18 @@ func buildTestConfig() config.Config {
 					Methods:    []string{"GET"},
 					ConfigType: "mock",
 					Log:        true,
-					Delay: config.Delay{
-						Min: "200ms",
-						Max: "300ms",
-					},
-					Response: config.Response{
+					Responses: []config.Response{{
 						Headers: map[string]string{"content-type": "text/plain"},
 						Status: map[string]int{
 							"GET": 200,
 						},
 						BodyType: "fixed",
 						Body:     "pong",
-					},
+						Delay: config.Delay{
+							Min: "200ms",
+							Max: "300ms",
+						},
+					}},
 				},
 			},
 			{
@@ -82,14 +82,14 @@ func buildTestConfig() config.Config {
 					Methods:    []string{"GET"},
 					ConfigType: "mock",
 					Log:        true,
-					Response: config.Response{
+					Responses: []config.Response{{
 						Headers: map[string]string{"content-type": "application/json"},
 						Status: map[string]int{
 							"GET": 200,
 						},
 						BodyType: "fixed",
 						BodyFile: "testdata/response1.json",
-					},
+					}},
 				},
 			},
 			{
@@ -98,7 +98,7 @@ func buildTestConfig() config.Config {
 					Methods:    []string{"GET"},
 					ConfigType: "mock",
 					Log:        true,
-					Response: config.Response{
+					Responses: []config.Response{{
 						Headers: map[string]string{"content-type": "application/json"},
 						Status: map[string]int{
 							"GET": 200,
@@ -107,7 +107,7 @@ func buildTestConfig() config.Config {
 						MagicHeaderFolder: "testdata",
 						MagicHeaderName:   "X-MOCK-FILE",
 						BodyFile:          "testdata/fallback.json",
-					},
+					}},
 				},
 			},
 			{
@@ -116,14 +116,14 @@ func buildTestConfig() config.Config {
 					Methods:    []string{"GET"},
 					ConfigType: "mock",
 					Log:        true,
-					Response: config.Response{
+					Responses: []config.Response{{
 						Status: map[string]int{
 							"GET": 200,
 						},
 						BodyType:       "runnable",
 						ResponseLib:    "testdata/runnable/runnable.so",
 						ResponseSymbol: "GetEnv",
-					},
+					}},
 				},
 			},
 		},

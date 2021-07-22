@@ -5,7 +5,7 @@ services:
       rewrite:
         - source: /pass/postman(/.*)
           target: $1
-      methods: [ POST, GET, PUT, DELETE ]
+      methods: [POST, GET, PUT, DELETE]
       type: pass
       log: true
       transform-lib: processor/testdata/transform/transform.so
@@ -13,80 +13,90 @@ services:
       pass-base-uri: "https://postman-echo.com"
   - parser:
       pattern: /.*$
-      methods: [ POST,PUT,DELETE ]
+      methods: [POST, PUT, DELETE]
       headers:
         content-type: application/json
       type: mock
       log: true
-      response:
-        headers:
-          content-type: application/json
-        status:
-          POST: 201
-          PUT: 200
-          DELETE: 204
-        body-type: echo
+      responses:
+        - headers:
+            content-type: application/json
+          status:
+            POST: 201
+            PUT: 200
+            DELETE: 204
+          body-type: echo
+          distribution: 80.5
+        - headers:
+            content-type: application/json
+          status:
+            POST: 500
+            PUT: 500
+            DELETE: 500
+          body-type: fixed
+          body: '{ "message": "internal server error" }'
+          distribution: 19.5
   - parser:
       pattern: /mock/fixed/value.*
-      methods: [ GET ]
+      methods: [GET]
       type: mock
       log: true
-      response:
-        headers:
-          content-type: text/plain
-        status:
-          GET: 200
-        body-type: fixed
-        body: pong
+      responses:
+        - headers:
+            content-type: text/plain
+          status:
+            GET: 200
+          body-type: fixed
+          body: pong
   - parser:
       pattern: /mock/fixed/delay.*
-      methods: [ GET ]
+      methods: [GET]
       type: mock
       log: true
-      delay:
-        min: 2s
-        max: 3s
-      response:
-        headers:
-          content-type: text/plain
-        status:
-          GET: 200
-        body-type: fixed
-        body: pong
+      responses:
+        - delay:
+            min: 2s
+            max: 3s
+          headers:
+            content-type: text/plain
+          status:
+            GET: 200
+          body-type: fixed
+          body: pong
   - parser:
       pattern: /mock/fixed/file.*
-      methods: [ GET ]
+      methods: [GET]
       type: mock
       log: true
-      response:
-        headers:
-          content-type: application/json
-        status:
-          GET: 200
-        body-type: fixed
-        body-file: processor/testdata/response1.json
+      responses:
+        - headers:
+            content-type: application/json
+          status:
+            GET: 200
+          body-type: fixed
+          body-file: processor/testdata/response1.json
   - parser:
       pattern: /mock/magicheader/file.*
-      methods: [ GET ]
+      methods: [GET]
       type: mock
       log: true
-      response:
-        headers:
-          content-type: application/json
-        status:
-          GET: 200
-        body-type: fixed
-        body-file: processor/testdata/fallback.json
-        magic-header-name: X-MAGIC-FILE
-        magic-header-folder: processor/testdata
+      responses:
+        - headers:
+            content-type: application/json
+          status:
+            GET: 200
+          body-type: fixed
+          body-file: processor/testdata/fallback.json
+          magic-header-name: X-MAGIC-FILE
+          magic-header-folder: processor/testdata
   - parser:
       pattern: /mock/runnable.*
-      methods: [ GET ]
+      methods: [GET]
       type: mock
       log: true
-      response:
-        status:
-          GET: 200
-        body-type: runnable
-        response-lib: processor/testdata/runnable/runnable.so
-        response-symbol: GetEnv
+      responses:
+        - status:
+            GET: 200
+          body-type: runnable
+          response-lib: processor/testdata/runnable/runnable.so
+          response-symbol: GetEnv

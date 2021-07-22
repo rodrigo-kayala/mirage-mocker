@@ -1,6 +1,6 @@
 module github.com/rodrigo-kayala/mirage-mocker
 
-go 1.15
+go 1.16
 
 require (
 	github.com/rs/zerolog v1.21.0

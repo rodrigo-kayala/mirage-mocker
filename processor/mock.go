@@ -3,9 +3,11 @@ package processor
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"path"
 	"sync"
+	"time"
 )
 
 // Runnable plugin structure
@@ -15,7 +17,22 @@ type runnable struct {
 
 type mockParser struct {
 	baseParser
-	Response response
+	Responses []response
+}
+
+func (mr *mockParser) chooseResponse() response {
+	r := float64(rand.Int63n(10000)) / 100
+	min := 0.0
+
+	for _, response := range mr.Responses {
+		baseResponse := response.GetBaseResponse()
+		min += baseResponse.Distribuition
+		if r < min {
+			return response
+		}
+	}
+
+	panic("unreacheable")
 }
 
 // ProcessRequest process mock requests
@@ -23,8 +40,10 @@ func (mr *mockParser) ProcessRequest(w http.ResponseWriter, r *http.Request) {
 	if mr.Log {
 		logRequest(r)
 	}
+	response := mr.chooseResponse()
+	response.GetBaseResponse().delay()
 
-	mr.Response.WriteResponse(w, r)
+	response.WriteResponse(w, r)
 }
 
 func (mr *mockParser) GetBaseParser() baseParser {
@@ -32,18 +51,36 @@ func (mr *mockParser) GetBaseParser() baseParser {
 }
 
 type response interface {
+	GetBaseResponse() *baseResponse
 	WriteResponse(w http.ResponseWriter, r *http.Request)
 }
 
 type baseResponse struct {
-	Status  map[string]int
-	Headers map[string]string
+	Status        map[string]int
+	Headers       map[string]string
+	Distribuition float64
+	MinDelay      time.Duration
+	MaxDelay      time.Duration
 }
 
 func (br *baseResponse) addHeaders(w http.ResponseWriter) {
 	for k, v := range br.Headers {
 		w.Header().Add(k, v)
 	}
+}
+
+func (br *baseResponse) delay() {
+	delay(br.MinDelay, br.MaxDelay)
+}
+
+func delay(min time.Duration, max time.Duration) {
+	delta := int64(max - min)
+	if delta <= 0 {
+		return
+	}
+	d := rand.Int63n(delta) + int64(min)
+
+	time.Sleep(time.Duration(d))
 }
 
 type responseFixed struct {
@@ -82,6 +119,10 @@ func (rf *responseFixed) magicHeaderBody(bodyFile string) (string, error) {
 	}
 
 	return body, nil
+}
+
+func (br *baseResponse) GetBaseResponse() *baseResponse {
+	return br
 }
 
 // WriteResponse writes response for fixed response type

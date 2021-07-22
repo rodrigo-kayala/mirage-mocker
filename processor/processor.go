@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"regexp"
+	"sort"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -15,7 +15,8 @@ import (
 )
 
 var (
-	ErrNoMatchFound = errors.New("no match found for request")
+	ErrNoMatchFound  = errors.New("no match found for request")
+	ErrInvalidConfig = errors.New("invalid config")
 )
 
 type Processor interface {
@@ -47,20 +48,8 @@ func (rp *processor) Process(w http.ResponseWriter, r *http.Request) {
 		errorResponse(w, fmt.Sprintf("error processing request: %v", err), status)
 		return
 	}
-	base := requestProcess.GetBaseParser()
-	delay(base.MinDelay, base.MaxDelay)
 
 	requestProcess.ProcessRequest(w, r)
-}
-
-func delay(min time.Duration, max time.Duration) {
-	delta := int64(max - min)
-	if delta <= 0 {
-		return
-	}
-	d := rand.Int63n(delta) + int64(min)
-
-	time.Sleep(time.Duration(d))
 }
 
 func matchHeaders(header http.Header, expectedHeaders map[string]string) bool {
@@ -98,12 +87,10 @@ func (rp *processor) matchParser(r *http.Request) (parser, error) {
 
 // baseParser base structure
 type baseParser struct {
-	Pattern  string
-	Methods  []string
-	Headers  map[string]string
-	Log      bool
-	MinDelay time.Duration
-	MaxDelay time.Duration
+	Pattern string
+	Methods []string
+	Headers map[string]string
+	Log     bool
 }
 
 // NewFromConfig creates a new RequestProcessor from a Config struct
@@ -123,17 +110,21 @@ func NewFromConfig(c config.Config) (Processor, error) {
 			}
 			proc.Parsers = append(proc.Parsers, passParser)
 		case "mock":
-			mparser := mockParser{baseParser: base}
-			baseResp := baseResponse{
-				Status:  service.Parser.Response.Status,
-				Headers: service.Parser.Response.Headers,
+			respCfg, err := sortDistribution(service.Parser.Responses)
+			if err != nil {
+				return nil, fmt.Errorf("error while parsing response distribution: %w", err)
+			}
+			mparser := mockParser{baseParser: base, Responses: make([]response, len(respCfg))}
+
+			for i, response := range respCfg {
+				resp, err := buildResponse(response)
+				if err != nil {
+					return nil, fmt.Errorf("error while building responses: %w", err)
+				}
+
+				mparser.Responses[i] = resp
 			}
 
-			resp, err := parseMockResponseConfig(service.Parser.Response, baseResp)
-			if err != nil {
-				return nil, fmt.Errorf("error while parsing response: %w", err)
-			}
-			mparser.Response = resp
 			proc.Parsers = append(proc.Parsers, &mparser)
 		default:
 			return nil, fmt.Errorf("bad value for config-type %s", service.Parser.ConfigType)
@@ -143,25 +134,64 @@ func NewFromConfig(c config.Config) (Processor, error) {
 	return &proc, nil
 }
 
+func buildResponse(respCfg config.Response) (response, error) {
+	baseResp := baseResponse{
+		Status:        respCfg.Status,
+		Headers:       respCfg.Headers,
+		Distribuition: respCfg.Distribuition,
+	}
+
+	if respCfg.Delay.Min != "" && respCfg.Delay.Max != "" {
+		min, err := time.ParseDuration(respCfg.Delay.Min)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing min delay: %w", err)
+		}
+		max, err := time.ParseDuration(respCfg.Delay.Max)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing max delay: %w", err)
+		}
+		baseResp.MaxDelay = max
+		baseResp.MinDelay = min
+	}
+
+	return parseMockResponseConfig(respCfg, baseResp)
+}
+
+func sortDistribution(respCfg []config.Response) ([]config.Response, error) {
+	if len(respCfg) == 0 {
+		return nil, fmt.Errorf("empty response array: %w", ErrInvalidConfig)
+	}
+
+	outResponses := make([]config.Response, len(respCfg))
+	copy(outResponses, respCfg)
+
+	if len(outResponses) == 1 {
+		outResponses[0].Distribuition = 100
+		return outResponses, nil
+	}
+
+	total := 0.0
+	for _, response := range outResponses {
+		total += response.Distribuition
+	}
+
+	if total != 100 {
+		return nil, fmt.Errorf("sum of distributions must be 100: %w", ErrInvalidConfig)
+	}
+
+	sort.Slice(outResponses, func(i, j int) bool {
+		return outResponses[i].Distribuition < outResponses[j].Distribuition
+	})
+
+	return outResponses, nil
+}
+
 func createBaseParser(conf config.Parser) (baseParser, error) {
 	base := baseParser{
 		Headers: conf.Headers,
 		Log:     conf.Log,
 		Methods: conf.Methods,
 		Pattern: conf.Pattern,
-	}
-
-	if conf.Delay.Min != "" && conf.Delay.Max != "" {
-		min, err := time.ParseDuration(conf.Delay.Min)
-		if err != nil {
-			return baseParser{}, fmt.Errorf("error parsing min delay: %w", err)
-		}
-		max, err := time.ParseDuration(conf.Delay.Max)
-		if err != nil {
-			return baseParser{}, fmt.Errorf("error parsing max delay: %w", err)
-		}
-		base.MaxDelay = max
-		base.MinDelay = min
 	}
 
 	return base, nil
