@@ -34,8 +34,12 @@ func loadConfig(configPath string) config.Config {
 
 func main() {
 	configFile := "mocker.yml"
-	if len(os.Args) > 1 {
-		configFile = os.Args[1]
+	if envVarConfig := os.Getenv("MIRAGE_MOCKER_CONFIG"); envVarConfig != "" {
+		configFile = envVarConfig
+	} else {
+		if len(os.Args) > 1 {
+			configFile = os.Args[1]
+		}
 	}
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
