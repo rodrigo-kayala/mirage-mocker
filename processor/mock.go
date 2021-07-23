@@ -75,11 +75,16 @@ func (br *baseResponse) delay() {
 
 func delay(min time.Duration, max time.Duration) {
 	delta := int64(max - min)
-	if delta <= 0 {
+	if delta < 0 {
 		return
 	}
-	d := rand.Int63n(delta) + int64(min)
 
+	if delta == 0 {
+		time.Sleep(min)
+		return
+	}
+
+	d := rand.Int63n(delta) + int64(min)
 	time.Sleep(time.Duration(d))
 }
 
