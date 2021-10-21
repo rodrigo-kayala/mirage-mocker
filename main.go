@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -65,5 +66,19 @@ func main() {
 	}
 
 	http.HandleFunc("/", rp.Process)
-	log.Fatal().Err(http.ListenAndServe(fmt.Sprintf(":%d", port), nil)).Msg("error serving http")
+
+	//log.Fatal().Err(http.ListenAndServe(fmt.Sprintf(":%d", port), nil)).Msg("error serving http")
+	l, _ := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	tl := &throttledListener{l}
+	log.Fatal().Err(http.Serve(tl, nil)).Msg("error serving http")
+
+}
+
+type throttledListener struct {
+	net.Listener
+}
+
+func (l *throttledListener) Accept() (net.Conn, error) {
+	time.Sleep(time.Second * 20)
+	return l.Listener.Accept()
 }

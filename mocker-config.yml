@@ -1,0 +1,19 @@
+port: 9999
+pretty-logs: true
+services:
+  - parser:
+      pattern: /.*
+      methods: [GET]
+      type: mock
+      log: true
+      responses:
+        - headers:
+            content-type: application/json
+            X-MSVRT: somevalue
+          status:
+            GET: 200
+          body-type: fixed
+          body: '{"vector":[{"id":1, "score":2}, {"id":2, "score":3}]}'
+          delay:
+            min: 10s
+            max: 10s
