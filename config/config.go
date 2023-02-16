@@ -18,6 +18,7 @@ type Parser struct {
 	Rewrites        []Rewrite         `yaml:"rewrite"`
 	Methods         []string          `yaml:"methods"`
 	Headers         map[string]string `yaml:"headers"`
+	QueryParams     map[string]string `yaml:"queryParams"`
 	ConfigType      string            `yaml:"type"`
 	TransformLib    string            `yaml:"transform-lib"`
 	TransformSymbol string            `yaml:"transform-symbol"`

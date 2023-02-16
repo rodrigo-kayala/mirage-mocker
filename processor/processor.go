@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sort"
 	"time"
@@ -52,6 +53,15 @@ func (rp *processor) Process(w http.ResponseWriter, r *http.Request) {
 	requestProcess.ProcessRequest(w, r)
 }
 
+func matchQueryParams(values url.Values, expectedQueryParams map[string]string) bool {
+	for k, v := range expectedQueryParams {
+		if values.Get(k) != v {
+			return false
+		}
+	}
+	return true
+}
+
 func matchHeaders(header http.Header, expectedHeaders map[string]string) bool {
 	for k, v := range expectedHeaders {
 		if header.Get(k) != v {
@@ -65,6 +75,10 @@ func (rp *processor) matchParser(r *http.Request) (parser, error) {
 	log.Debug().Msgf("parsers: %#v", rp.Parsers)
 	for _, parser := range rp.Parsers {
 		bp := parser.GetBaseParser()
+		if !matchQueryParams(r.URL.Query(), bp.QueryParams) {
+			continue
+		}
+
 		if !matchHeaders(r.Header, bp.Headers) {
 			continue
 		}
@@ -87,10 +101,11 @@ func (rp *processor) matchParser(r *http.Request) (parser, error) {
 
 // baseParser base structure
 type baseParser struct {
-	Pattern string
-	Methods []string
-	Headers map[string]string
-	Log     bool
+	Pattern     string
+	Methods     []string
+	Headers     map[string]string
+	QueryParams map[string]string
+	Log         bool
 }
 
 // NewFromConfig creates a new RequestProcessor from a Config struct
@@ -188,10 +203,11 @@ func sortDistribution(respCfg []config.Response) ([]config.Response, error) {
 
 func createBaseParser(conf config.Parser) (baseParser, error) {
 	base := baseParser{
-		Headers: conf.Headers,
-		Log:     conf.Log,
-		Methods: conf.Methods,
-		Pattern: conf.Pattern,
+		Headers:     conf.Headers,
+		QueryParams: conf.QueryParams,
+		Log:         conf.Log,
+		Methods:     conf.Methods,
+		Pattern:     conf.Pattern,
 	}
 
 	return base, nil
